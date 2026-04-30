@@ -27,8 +27,8 @@ function activate(context) {
     vscode.commands.registerCommand('m3270.connect', () => connectFromStoredSettings()),
     vscode.commands.registerCommand('m3270.showLog', () => outputChannel.show()),
     vscode.commands.registerCommand('m3270.disconnect', () => activeSession.disconnect()),
-    vscode.commands.registerCommand('m3270.enter', () => activeSession.enter()),
-    vscode.commands.registerCommand('m3270.clear', () => activeSession.clear()),
+    vscode.commands.registerCommand('m3270.enter', () => activeSession.sendAidAsync('enter')),
+    vscode.commands.registerCommand('m3270.clear', () => activeSession.sendAidAsync('clear')),
     vscode.commands.registerCommand('m3270.fieldExit', () => activeSession.perform({ type: 'fieldExit' })),
     vscode.commands.registerCommand('m3270.tab', () => activeSession.perform({ type: 'tab' })),
     vscode.commands.registerCommand('m3270.backtab', () => activeSession.perform({ type: 'backtab' })),
@@ -44,12 +44,12 @@ function activate(context) {
 
   for (let i = 1; i <= 24; i += 1) {
     context.subscriptions.push(
-      vscode.commands.registerCommand(`m3270.pf${i}`, () => activeSession.pf(i))
+      vscode.commands.registerCommand(`m3270.pf${i}`, () => activeSession.sendAidAsync(`pf${i}`))
     );
   }
   for (let i = 1; i <= 3; i += 1) {
     context.subscriptions.push(
-      vscode.commands.registerCommand(`m3270.pa${i}`, () => activeSession.pa(i))
+      vscode.commands.registerCommand(`m3270.pa${i}`, () => activeSession.sendAidAsync(`pa${i}`))
     );
   }
 
@@ -67,10 +67,10 @@ function activate(context) {
     connect: (options) => activeSession.connect(options),
     disconnect: () => activeSession.disconnect(),
     sendText: (text) => activeSession.sendText(text),
-    sendAid: (aid) => activeSession.sendAid(aid),
-    pressPf: (number) => activeSession.pf(number),
-    pressPa: (number) => activeSession.pa(number),
-    enter: () => activeSession.enter(),
+    sendAid: (aid) => activeSession.sendAidAsync(aid),
+    pressPf: (number) => activeSession.sendAidAsync(`pf${number}`),
+    pressPa: (number) => activeSession.sendAidAsync(`pa${number}`),
+    enter: () => activeSession.sendAidAsync('enter'),
     clear: () => activeSession.clear(),
     navigate: (actions) => activeSession.navigate(actions),
     getConnectionStatus: () => activeSession.getConnectionStatus(),

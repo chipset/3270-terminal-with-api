@@ -352,3 +352,93 @@ test('records the cursor location from IC orders', () => {
   assert.deepEqual(session.getSnapshot().screen.cursor, { row: 0, col: 42 });
   assert.deepEqual(session.getSnapshot().screen.insertCursor, { row: 0, col: 42 });
 });
+
+// sendAidAsync
+
+test('sendAidAsync resolves immediately when the session is not connected', async () => {
+  const session = new EmulatorSession();
+  const snapshot = await session.sendAidAsync('pf3');
+  assert.equal(snapshot.connection.connected, false);
+});
+
+test('sendAidAsync resolves with the updated snapshot after the host responds', async () => {
+  const session = new EmulatorSession();
+  session.connection.connected = true;
+
+  const resultPromise = session.sendAidAsync('pf3');
+
+  session.receiveDataStream(Buffer.concat([
+    Buffer.from([COMMANDS.eraseWrite, 0xc7]),
+    toEbcdic('RESPONSE OK')
+  ]));
+
+  const snapshot = await resultPromise;
+  assert.match(snapshot.screen.lines[0], /RESPONSE OK/u);
+});
+
+test('sendAidAsync does not resolve on the synchronous emitUpdate from sendAid itself', async () => {
+  const session = new EmulatorSession();
+  session.connection.connected = true;
+
+  let resolved = false;
+  const resultPromise = session.sendAidAsync('pf3').then((s) => { resolved = true; return s; });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(resolved, false, 'should not resolve before host responds');
+
+  session.receiveDataStream(Buffer.concat([
+    Buffer.from([COMMANDS.eraseWrite, 0xc7]),
+    toEbcdic('MENU')
+  ]));
+  await resultPromise;
+  assert.equal(resolved, true);
+});
+
+test('sendAidAsync resolves after timeout when the connected host does not respond', async () => {
+  const session = new EmulatorSession();
+  session.connection.connected = true;
+
+  const snapshot = await session.sendAidAsync('enter', 50);
+  assert.equal(snapshot.connection.connected, true);
+});
+
+test('sendAidAsync removes the update listener after resolving', async () => {
+  const session = new EmulatorSession();
+  const countBefore = session.listenerCount('update');
+
+  await session.sendAidAsync('pf1'); // resolves immediately — not connected
+
+  assert.equal(session.listenerCount('update'), countBefore);
+});
+
+test('sendAidAsync removes the update listener after a host response', async () => {
+  const session = new EmulatorSession();
+  session.connection.connected = true;
+  const countBefore = session.listenerCount('update');
+
+  const p = session.sendAidAsync('pf3');
+  session.receiveDataStream(Buffer.from([COMMANDS.eraseWrite, 0xc7]));
+  await p;
+
+  assert.equal(session.listenerCount('update'), countBefore);
+});
+
+test('sendAidAsync works for pf, pa, and enter via convenience wrappers', async () => {
+  const session = new EmulatorSession();
+  session.connection.connected = true;
+
+  const data = Buffer.concat([Buffer.from([COMMANDS.eraseWrite, 0xc7]), toEbcdic('OK')]);
+
+  const pfPromise = session.sendAidAsync('pf12');
+  session.receiveDataStream(data);
+  const pfSnapshot = await pfPromise;
+  assert.match(pfSnapshot.screen.lines[0], /OK/u);
+
+  const paPromise = session.sendAidAsync('pa2');
+  session.receiveDataStream(data);
+  await paPromise;
+
+  const enterPromise = session.sendAidAsync('enter');
+  session.receiveDataStream(data);
+  await enterPromise;
+});
