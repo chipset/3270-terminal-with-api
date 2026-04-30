@@ -219,6 +219,26 @@ test('maps compact color bytes and extended 3279 palette', () => {
   assert.equal(snapshot.screen.cells[3].color, 'deepBlue');
 });
 
+test('resets Set Attribute context when a new field starts so colors do not bleed across fields', () => {
+  const session = new EmulatorSession();
+
+  session.receiveDataStream(Buffer.concat([
+    Buffer.from([COMMANDS.eraseWrite, 0xc7, ORDERS.sba]),
+    encodeAddress(0),
+    Buffer.from([ORDERS.sfe, 2, 0xc0, 0x00, 0x42, 0xf7]),
+    toEbcdic('AAAA'),
+    Buffer.from([ORDERS.sa, 0x42, 0xf2]),
+    Buffer.from([ORDERS.sba]),
+    encodeAddress(10),
+    Buffer.from([ORDERS.sfe, 2, 0xc0, 0x00, 0x42, 0xf4]),
+    toEbcdic('BBBB')
+  ]));
+
+  const cells = session.getSnapshot().screen.cells;
+  assert.equal(cells[1].color, 'white');
+  assert.equal(cells[11].color, 'green');
+});
+
 test('renders ASCII host banners instead of treating them as blank EBCDIC', () => {
   const session = new EmulatorSession();
 

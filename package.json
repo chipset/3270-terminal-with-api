@@ -13,6 +13,7 @@
   "activationEvents": [
     "onCommand:m3270.open",
     "onCommand:m3270.settings",
+    "onCommand:m3270.colorSettings",
     "onCommand:m3270.connect",
     "onCommand:m3270.showLog",
     "onCommand:m3270.disconnect",
@@ -59,6 +60,10 @@
       {
         "command": "m3270.settings",
         "title": "m3270: Connection Settings"
+      },
+      {
+        "command": "m3270.colorSettings",
+        "title": "m3270: Colors & appearance"
       },
       {
         "command": "m3270.connect",
@@ -234,8 +239,17 @@
         },
         "m3270.terminalType": {
           "type": "string",
-          "default": "IBM-3278-2-E",
-          "description": "TN3270 terminal type sent during telnet negotiation."
+          "default": "IBM-3279-2-E",
+          "description": "TN3270 terminal type sent to the host. Use IBM-3279-2-E (or another 3279 *-E model) so the host sends the full extended color palette; IBM-3278-* types are often treated as green/white only."
+        },
+        "m3270.colors": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "markdownDescription": "Optional map of 3270 color names to `#RRGGBB` in the emulator webview. Keys: `default`, `green`, `blue`, `red`, `pink`, `turquoise`, `yellow`, `white`, `black`, `deepBlue`, `orange`, `purple`, `paleGreen`, `paleTurquoise`, `gray`, `brightWhite`."
         },
         "m3270.deviceName": {
           "type": "string",
