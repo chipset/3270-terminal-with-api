@@ -1,0 +1,13 @@
+{
+  "id": "m3270-validation",
+  "title": "m3270 Validation",
+  "description": "Validates the standalone 3270 emulator project without modifying instrktr-engine.",
+  "steps": [
+    {
+      "id": "api",
+      "title": "Validate emulator API",
+      "instructions": "steps/01-api/instructions.md",
+      "validator": "steps/01-api/validate.js"
+    }
+  ]
+}

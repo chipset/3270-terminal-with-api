@@ -1,0 +1,260 @@
+{
+  "name": "m3270",
+  "displayName": "m3270",
+  "description": "A basic 3270-style terminal emulator for VS Code with a programmatic control API.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:m3270.open",
+    "onCommand:m3270.settings",
+    "onCommand:m3270.connect",
+    "onCommand:m3270.showLog",
+    "onCommand:m3270.disconnect",
+    "onCommand:m3270.enter",
+    "onCommand:m3270.clear",
+    "onCommand:m3270.pf1",
+    "onCommand:m3270.pf2",
+    "onCommand:m3270.pf3",
+    "onCommand:m3270.pf4",
+    "onCommand:m3270.pf5",
+    "onCommand:m3270.pf6",
+    "onCommand:m3270.pf7",
+    "onCommand:m3270.pf8",
+    "onCommand:m3270.pf9",
+    "onCommand:m3270.pf10",
+    "onCommand:m3270.pf11",
+    "onCommand:m3270.pf12",
+    "onCommand:m3270.pf13",
+    "onCommand:m3270.pf14",
+    "onCommand:m3270.pf15",
+    "onCommand:m3270.pf16",
+    "onCommand:m3270.pf17",
+    "onCommand:m3270.pf18",
+    "onCommand:m3270.pf19",
+    "onCommand:m3270.pf20",
+    "onCommand:m3270.pf21",
+    "onCommand:m3270.pf22",
+    "onCommand:m3270.pf23",
+    "onCommand:m3270.pf24",
+    "onCommand:m3270.pa1",
+    "onCommand:m3270.pa2",
+    "onCommand:m3270.pa3",
+    "onCommand:m3270.fieldExit",
+    "onCommand:m3270.tab",
+    "onCommand:m3270.backtab"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "m3270.open",
+        "title": "m3270: Open Emulator"
+      },
+      {
+        "command": "m3270.settings",
+        "title": "m3270: Connection Settings"
+      },
+      {
+        "command": "m3270.connect",
+        "title": "m3270: Connect"
+      },
+      {
+        "command": "m3270.showLog",
+        "title": "m3270: Show Connection Log"
+      },
+      {
+        "command": "m3270.disconnect",
+        "title": "m3270: Disconnect"
+      },
+      {
+        "command": "m3270.enter",
+        "title": "m3270: Enter"
+      },
+      {
+        "command": "m3270.clear",
+        "title": "m3270: Clear Screen"
+      },
+      {
+        "command": "m3270.pf1",
+        "title": "m3270: PF1"
+      },
+      {
+        "command": "m3270.pf2",
+        "title": "m3270: PF2"
+      },
+      {
+        "command": "m3270.pf3",
+        "title": "m3270: PF3"
+      },
+      {
+        "command": "m3270.pf4",
+        "title": "m3270: PF4"
+      },
+      {
+        "command": "m3270.pf5",
+        "title": "m3270: PF5"
+      },
+      {
+        "command": "m3270.pf6",
+        "title": "m3270: PF6"
+      },
+      {
+        "command": "m3270.pf7",
+        "title": "m3270: PF7"
+      },
+      {
+        "command": "m3270.pf8",
+        "title": "m3270: PF8"
+      },
+      {
+        "command": "m3270.pf9",
+        "title": "m3270: PF9"
+      },
+      {
+        "command": "m3270.pf10",
+        "title": "m3270: PF10"
+      },
+      {
+        "command": "m3270.pf11",
+        "title": "m3270: PF11"
+      },
+      {
+        "command": "m3270.pf12",
+        "title": "m3270: PF12"
+      },
+      {
+        "command": "m3270.pf13",
+        "title": "m3270: PF13"
+      },
+      {
+        "command": "m3270.pf14",
+        "title": "m3270: PF14"
+      },
+      {
+        "command": "m3270.pf15",
+        "title": "m3270: PF15"
+      },
+      {
+        "command": "m3270.pf16",
+        "title": "m3270: PF16"
+      },
+      {
+        "command": "m3270.pf17",
+        "title": "m3270: PF17"
+      },
+      {
+        "command": "m3270.pf18",
+        "title": "m3270: PF18"
+      },
+      {
+        "command": "m3270.pf19",
+        "title": "m3270: PF19"
+      },
+      {
+        "command": "m3270.pf20",
+        "title": "m3270: PF20"
+      },
+      {
+        "command": "m3270.pf21",
+        "title": "m3270: PF21"
+      },
+      {
+        "command": "m3270.pf22",
+        "title": "m3270: PF22"
+      },
+      {
+        "command": "m3270.pf23",
+        "title": "m3270: PF23"
+      },
+      {
+        "command": "m3270.pf24",
+        "title": "m3270: PF24"
+      },
+      {
+        "command": "m3270.pa1",
+        "title": "m3270: PA1"
+      },
+      {
+        "command": "m3270.pa2",
+        "title": "m3270: PA2"
+      },
+      {
+        "command": "m3270.pa3",
+        "title": "m3270: PA3"
+      },
+      {
+        "command": "m3270.fieldExit",
+        "title": "m3270: Field Exit"
+      },
+      {
+        "command": "m3270.tab",
+        "title": "m3270: Next Field"
+      },
+      {
+        "command": "m3270.backtab",
+        "title": "m3270: Previous Field"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "m3270.backtab",
+        "key": "shift+tab",
+        "mac": "shift+tab",
+        "when": "webviewId == 'm3270.emulator'"
+      }
+    ],
+    "configuration": {
+      "title": "m3270",
+      "properties": {
+        "m3270.hostname": {
+          "type": "string",
+          "default": "",
+          "description": "Default host name for 3270 connections."
+        },
+        "m3270.port": {
+          "type": "number",
+          "default": 23,
+          "description": "Default host port for 3270 connections."
+        },
+        "m3270.secure": {
+          "type": "boolean",
+          "default": false,
+          "description": "Connect with TLS."
+        },
+        "m3270.rejectUnauthorized": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reject unauthorized TLS certificates."
+        },
+        "m3270.terminalType": {
+          "type": "string",
+          "default": "IBM-3278-2-E",
+          "description": "TN3270 terminal type sent during telnet negotiation."
+        },
+        "m3270.deviceName": {
+          "type": "string",
+          "default": "",
+          "description": "Optional device or LU name appended to the terminal type when requested by the host."
+        },
+        "m3270.connectionTimeoutMs": {
+          "type": "number",
+          "default": 10000,
+          "description": "TCP/TLS connection timeout in milliseconds."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "validate": "node test/emulator.test.js"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.1"
+  }
+}

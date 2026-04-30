@@ -1,0 +1,38 @@
+# Packaged extension
+*.vsix
+
+# Dependencies
+node_modules/
+
+# Logs and debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Test / tooling coverage
+coverage/
+.nyc_output/
+
+# Editor / IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Caches
+.eslintcache
+
+# m3270 runtime screen mirrors (may include host/session details)
+.m3270/
+m3270-snapshot.json
