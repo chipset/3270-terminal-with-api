@@ -108,6 +108,7 @@ function openEmulator(context) {
     vscode.ViewColumn.Active,
     { enableScripts: true }
   );
+  activePanel.iconPath = vscode.Uri.file(path.join(extensionContext.extensionPath, 'icon.svg'));
   activePanel.webview.html = getWebviewHtml();
   activePanel.onDidDispose(() => {
     activePanel = undefined;
@@ -155,6 +156,7 @@ function openSettingsPanel(context) {
     vscode.ViewColumn.Active,
     { enableScripts: true }
   );
+  settingsPanel.iconPath = vscode.Uri.file(path.join(extensionContext.extensionPath, 'icon.svg'));
   settingsPanel.webview.html = getSettingsHtml();
   settingsPanel.onDidDispose(() => {
     settingsPanel = undefined;
@@ -192,6 +194,7 @@ function openColorSettingsPanel(context) {
     vscode.ViewColumn.Active,
     { enableScripts: true }
   );
+  colorPanel.iconPath = vscode.Uri.file(path.join(extensionContext.extensionPath, 'icon.svg'));
   colorPanel.webview.html = getColorSettingsHtml();
   colorPanel.onDidDispose(() => {
     colorPanel = undefined;

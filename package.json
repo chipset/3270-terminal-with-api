@@ -4,6 +4,11 @@
   "description": "A basic 3270-style terminal emulator for VS Code with a programmatic control API.",
   "version": "0.1.0",
   "publisher": "local",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chipset/3270-terminal-with-api.git"
+  },
   "engines": {
     "vscode": "^1.93.0"
   },
