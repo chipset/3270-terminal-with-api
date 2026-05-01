@@ -5,7 +5,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const validate = require(
-  path.join(__dirname, '../../vscode-3270-emulator/instrktr-endevor-quick-edit/steps/02-main-screen/validate')
+  path.join(__dirname, '../instrktr-validation/steps/02-main-screen/validate')
 );
 
 function makeSnapshot(screenText, connected = true) {

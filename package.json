@@ -53,7 +53,12 @@
     "onCommand:m3270.pa3",
     "onCommand:m3270.fieldExit",
     "onCommand:m3270.tab",
-    "onCommand:m3270.backtab"
+    "onCommand:m3270.backtab",
+    "onCommand:m3270.newSession",
+    "onCommand:m3270.switchSession",
+    "onCommand:m3270.connectSession",
+    "onCommand:m3270.disconnectSession",
+    "onView:m3270.sessions"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -209,6 +214,22 @@
       {
         "command": "m3270.backtab",
         "title": "m3270: Previous Field"
+      },
+      {
+        "command": "m3270.newSession",
+        "title": "m3270: New Session"
+      },
+      {
+        "command": "m3270.switchSession",
+        "title": "m3270: Switch Session"
+      },
+      {
+        "command": "m3270.connectSession",
+        "title": "m3270: Connect Session"
+      },
+      {
+        "command": "m3270.disconnectSession",
+        "title": "m3270: Disconnect Session"
       }
     ],
     "keybindings": [
@@ -245,7 +266,25 @@
         "m3270.terminalType": {
           "type": "string",
           "default": "IBM-3279-2-E",
-          "description": "TN3270 terminal type sent to the host. Use IBM-3279-2-E (or another 3279 *-E model) so the host sends the full extended color palette; IBM-3278-* types are often treated as green/white only."
+          "description": "TN3270 terminal type sent to the host. Use IBM-3279-2-E (or another 3279 *-E model) so the host sends the full extended color palette; IBM-3278-* types are often treated as green/white only.",
+          "enum": [
+            "IBM-3278-2",
+            "IBM-3278-2-E",
+            "IBM-3278-3",
+            "IBM-3278-3-E",
+            "IBM-3278-4",
+            "IBM-3278-4-E",
+            "IBM-3278-5",
+            "IBM-3278-5-E",
+            "IBM-3279-2",
+            "IBM-3279-2-E",
+            "IBM-3279-3",
+            "IBM-3279-3-E",
+            "IBM-3279-4",
+            "IBM-3279-4-E",
+            "IBM-3279-5",
+            "IBM-3279-5-E"
+          ]
         },
         "m3270.colors": {
           "type": "object",
@@ -265,8 +304,55 @@
           "type": "number",
           "default": 10000,
           "description": "TCP/TLS connection timeout in milliseconds."
+        },
+        "m3270.keepSessionsInBackground": {
+          "type": "boolean",
+          "default": true,
+          "description": "Keep TN3270 sessions connected in the background after the terminal webview is closed. Disable to disconnect all sessions when the terminal view closes."
+        },
+        "m3270.keymap": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "markdownDescription": "Optional keyboard remapping for the emulator webview. Keys are lowercase combinations such as `ctrl+1`, `alt+shift+2`, `f13`, or `home`. Values are `enter`, `clear`, `pf1`-`pf24`, `pa1`-`pa3`, `tab`, `backtab`, `fieldExit`, or `text:<literal>`."
         }
       }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "m3270.sessions",
+          "name": "m3270 Sessions"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "m3270.newSession",
+          "when": "view == m3270.sessions",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "m3270.switchSession",
+          "when": "view == m3270.sessions && viewItem == m3270Session",
+          "group": "inline"
+        },
+        {
+          "command": "m3270.connectSession",
+          "when": "view == m3270.sessions && viewItem == m3270Session",
+          "group": "inline"
+        },
+        {
+          "command": "m3270.disconnectSession",
+          "when": "view == m3270.sessions && viewItem == m3270Session",
+          "group": "inline"
+        }
+      ]
     }
   },
   "scripts": {

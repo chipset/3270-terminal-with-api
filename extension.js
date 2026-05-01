@@ -6,24 +6,35 @@ const path = require('node:path');
 const vscode = require('vscode');
 const { EmulatorSession } = require('./lib/emulator');
 const { DEFAULT_TERMINAL_COLORS, TERMINAL_COLOR_ROWS } = require('./lib/colorPalette');
+const { parseTerminalType, supportedTerminalTypes } = require('./lib/deviceTypes');
 
 let activePanel;
 let settingsPanel;
 let colorPanel;
 let activeSession;
+let activeSessionId;
+let sessionCounter = 0;
+const sessions = new Map();
+let sessionsProvider;
 let outputChannel;
 let extensionContext;
 
 function activate(context) {
   extensionContext = context;
   outputChannel = vscode.window.createOutputChannel('m3270');
-  activeSession = createSession(getConfiguredConnection());
+  sessionsProvider = new SessionsProvider();
+  activeSession = createManagedSession('Session 1', getConfiguredConnection());
 
   context.subscriptions.push(
     outputChannel,
     vscode.commands.registerCommand('m3270.open', () => openEmulator(context)),
     vscode.commands.registerCommand('m3270.settings', () => openSettingsPanel(context)),
+    vscode.window.registerTreeDataProvider('m3270.sessions', sessionsProvider),
     vscode.commands.registerCommand('m3270.colorSettings', () => openColorSettingsPanel(context)),
+    vscode.commands.registerCommand('m3270.newSession', () => newSessionFromSettings()),
+    vscode.commands.registerCommand('m3270.switchSession', (item) => switchSession(item?.id)),
+    vscode.commands.registerCommand('m3270.connectSession', (item) => connectSession(item?.id)),
+    vscode.commands.registerCommand('m3270.disconnectSession', (item) => disconnectSession(item?.id)),
     vscode.commands.registerCommand('m3270.connect', () => connectFromStoredSettings()),
     vscode.commands.registerCommand('m3270.showLog', () => outputChannel.show()),
     vscode.commands.registerCommand('m3270.disconnect', () => activeSession.disconnect()),
@@ -33,7 +44,7 @@ function activate(context) {
     vscode.commands.registerCommand('m3270.tab', () => activeSession.perform({ type: 'tab' })),
     vscode.commands.registerCommand('m3270.backtab', () => activeSession.perform({ type: 'backtab' })),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('m3270.colors')) {
+      if (e.affectsConfiguration('m3270.colors') || e.affectsConfiguration('m3270.keymap')) {
         postColorPanelInit();
         if (activePanel) {
           postSnapshot(activeSession.getSnapshot());
@@ -53,13 +64,6 @@ function activate(context) {
     );
   }
 
-  activeSession.on('update', (snapshot) => postSnapshot(snapshot));
-  activeSession.on('trace', (message) => logConnection(message));
-  activeSession.on('aid', (event) => {
-    const aid = typeof event === 'string' ? event : event.aid;
-    const detail = typeof event === 'string' ? '' : ` (${event.bytes} bytes)`;
-    vscode.window.setStatusBarMessage(`m3270 sent ${String(aid).toUpperCase()}${detail}`, 1800);
-  });
 
   return {
     createSession,
@@ -95,6 +99,114 @@ function createSession(options = {}) {
   return new EmulatorSession(options);
 }
 
+
+function createManagedSession(name, options = {}) {
+  const id = `session-${++sessionCounter}`;
+  const session = createSession(options);
+  sessions.set(id, { id, name, session, connection: normalizeConnectionSettings(options) });
+  attachSession(id, session);
+  activeSessionId = id;
+  activeSession = session;
+  refreshSessions();
+  return session;
+}
+
+function attachSession(id, session) {
+  session.on('update', (snapshot) => {
+    if (id === activeSessionId) {
+      postSnapshot(snapshot);
+    }
+    refreshSessions();
+  });
+  session.on('trace', (message) => logConnection(`[${sessionLabel(id)}] ${message}`));
+  session.on('aid', (event) => {
+    if (id !== activeSessionId) {
+      return;
+    }
+    const aid = typeof event === 'string' ? event : event.aid;
+    const detail = typeof event === 'string' ? '' : ` (${event.bytes} bytes)`;
+    vscode.window.setStatusBarMessage(`m3270 sent ${String(aid).toUpperCase()}${detail}`, 1800);
+  });
+}
+
+function sessionLabel(id) {
+  return sessions.get(id)?.name || id || 'session';
+}
+
+function refreshSessions() {
+  if (sessionsProvider) {
+    sessionsProvider.refresh();
+  }
+}
+
+function newSessionFromSettings() {
+  const name = `Session ${sessions.size + 1}`;
+  createManagedSession(name, getConfiguredConnection());
+  openEmulator(extensionContext);
+  vscode.window.setStatusBarMessage(`m3270 created ${name}`, 1800);
+}
+
+function switchSession(id) {
+  const record = sessions.get(id);
+  if (!record) {
+    return;
+  }
+  activeSessionId = id;
+  activeSession = record.session;
+  postSnapshot(activeSession.getSnapshot());
+  openEmulator(extensionContext);
+  refreshSessions();
+}
+
+async function connectSession(id) {
+  switchSession(id);
+  await connectFromStoredSettings();
+}
+
+function disconnectSession(id) {
+  const record = sessions.get(id);
+  if (record) {
+    record.session.disconnect();
+  }
+}
+
+function disconnectAllSessions() {
+  for (const record of sessions.values()) {
+    record.session.disconnect();
+  }
+}
+
+class SessionsProvider {
+  constructor() {
+    this._onDidChangeTreeData = new vscode.EventEmitter();
+    this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+  }
+
+  refresh() {
+    this._onDidChangeTreeData.fire();
+  }
+
+  getTreeItem(item) {
+    return item;
+  }
+
+  getChildren() {
+    return Array.from(sessions.values()).map((record) => new SessionTreeItem(record, record.id === activeSessionId));
+  }
+}
+
+class SessionTreeItem extends vscode.TreeItem {
+  constructor(record, active) {
+    const status = record.session.getConnectionStatus();
+    super(`${active ? '● ' : ''}${record.name}`, vscode.TreeItemCollapsibleState.None);
+    this.id = record.id;
+    this.contextValue = 'm3270Session';
+    this.description = status.connected ? `${status.host}:${status.port}` : (status.connecting ? 'connecting' : 'offline');
+    this.tooltip = `${record.name}\n${record.connection.terminalType || ''}\n${this.description}`;
+    this.command = { command: 'm3270.switchSession', title: 'Switch Session', arguments: [this] };
+  }
+}
+
 function openEmulator(context) {
   if (activePanel) {
     activePanel.reveal(vscode.ViewColumn.Active);
@@ -112,6 +224,10 @@ function openEmulator(context) {
   activePanel.webview.html = getWebviewHtml();
   activePanel.onDidDispose(() => {
     activePanel = undefined;
+    if (!getKeepSessionsInBackground()) {
+      disconnectAllSessions();
+      vscode.window.setStatusBarMessage('m3270 terminal closed; sessions disconnected', 1800);
+    }
   }, undefined, context.subscriptions);
   activePanel.webview.onDidReceiveMessage(async (message) => {
     if (message.command === 'input') {
@@ -134,6 +250,8 @@ function openEmulator(context) {
       activeSession.perform({ type: 'backtab' });
     } else if (message.command === 'fieldExit') {
       activeSession.perform({ type: 'fieldExit' });
+    } else if (message.command === 'newSession') {
+      newSessionFromSettings();
     } else if (message.command === 'noop') {
       return;
     }
@@ -262,6 +380,14 @@ async function connectFromSettings(settings) {
   }
 
   const connection = normalizeConnectionSettings(settings);
+  const record = sessions.get(activeSessionId);
+  if (record) {
+    record.connection = connection;
+    if (connection.hostname) {
+      record.name = connection.deviceName || connection.hostname;
+    }
+    refreshSessions();
+  }
   logConnection(`connect requested ${connection.secure ? 'tls' : 'telnet'} ${connection.hostname}:${connection.port}`);
   try {
     await activeSession.connect({
@@ -292,6 +418,9 @@ async function saveSettings(settings) {
   await config.update('terminalType', connection.terminalType, vscode.ConfigurationTarget.Global);
   await config.update('deviceName', connection.deviceName, vscode.ConfigurationTarget.Global);
   await config.update('connectionTimeoutMs', connection.connectionTimeoutMs, vscode.ConfigurationTarget.Global);
+  if (settings.keepSessionsInBackground !== undefined) {
+    await config.update('keepSessionsInBackground', Boolean(settings.keepSessionsInBackground), vscode.ConfigurationTarget.Global);
+  }
 }
 
 function normalizePort(value) {
@@ -305,10 +434,15 @@ function normalizeConnectionSettings(settings) {
     port: normalizePort(settings.port),
     secure: Boolean(settings.secure),
     rejectUnauthorized: settings.rejectUnauthorized !== false,
-    terminalType: String(settings.terminalType || 'IBM-3279-2-E').trim(),
+    terminalType: normalizeTerminalType(settings.terminalType),
     deviceName: String(settings.deviceName ?? '').trim(),
     connectionTimeoutMs: normalizeTimeout(settings.connectionTimeoutMs)
   };
+}
+
+function normalizeTerminalType(value) {
+  const parsed = parseTerminalType(value || 'IBM-3279-2-E');
+  return parsed.terminalType || 'IBM-3279-2-E';
 }
 
 function normalizeTimeout(value) {
@@ -337,8 +471,13 @@ function getConfiguredConnection() {
     rejectUnauthorized: config.get('rejectUnauthorized', true),
     terminalType: config.get('terminalType', 'IBM-3279-2-E'),
     deviceName: config.get('deviceName', ''),
-    connectionTimeoutMs: config.get('connectionTimeoutMs', 10000)
+    connectionTimeoutMs: config.get('connectionTimeoutMs', 10000),
+    keepSessionsInBackground: config.get('keepSessionsInBackground', true)
   };
+}
+
+function getKeepSessionsInBackground() {
+  return vscode.workspace.getConfiguration('m3270').get('keepSessionsInBackground', true) !== false;
 }
 
 function logConnection(message) {
@@ -362,13 +501,20 @@ function getResolvedTerminalColors() {
   return { ...DEFAULT_TERMINAL_COLORS, ...getUserColorOverrides() };
 }
 
+function getKeymap() {
+  const raw = vscode.workspace.getConfiguration('m3270').get('keymap');
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+}
+
 function postSnapshot(snapshot) {
   mirrorSnapshotToWorkspaces(snapshot);
   if (activePanel) {
     activePanel.webview.postMessage({
       command: 'snapshot',
       snapshot,
-      colors: getResolvedTerminalColors()
+      screenText: snapshot.screen.lines.join('\n'),
+      colors: getResolvedTerminalColors(),
+      keymap: getKeymap()
     });
   }
 }
@@ -541,13 +687,17 @@ function getSettingsHtml() {
       Validate TLS certificates
     </label>
     <label>Terminal type
-      <input id="terminalType" autocomplete="off" placeholder="IBM-3279-2-E">
+      <select id="terminalType">${supportedTerminalTypes().map((type) => `<option value="${type}">${type}</option>`).join('')}</select>
     </label>
     <label>Device or LU name
       <input id="deviceName" autocomplete="off" placeholder="Optional">
     </label>
     <label>Connection timeout (ms)
       <input id="connectionTimeoutMs" type="number" min="1000" step="500">
+    </label>
+    <label class="check">
+      <input id="keepSessionsInBackground" type="checkbox">
+      Keep sessions running when the terminal view is closed
     </label>
     <div class="actions">
       <button class="primary" id="save">Save</button>
@@ -565,7 +715,8 @@ function getSettingsHtml() {
       rejectUnauthorized: document.getElementById('rejectUnauthorized'),
       terminalType: document.getElementById('terminalType'),
       deviceName: document.getElementById('deviceName'),
-      connectionTimeoutMs: document.getElementById('connectionTimeoutMs')
+      connectionTimeoutMs: document.getElementById('connectionTimeoutMs'),
+      keepSessionsInBackground: document.getElementById('keepSessionsInBackground')
     };
     const status = document.getElementById('status');
     document.getElementById('save').addEventListener('click', () => {
@@ -592,7 +743,8 @@ function getSettingsHtml() {
         rejectUnauthorized: fields.rejectUnauthorized.checked,
         terminalType: fields.terminalType.value.trim() || 'IBM-3279-2-E',
         deviceName: fields.deviceName.value.trim(),
-        connectionTimeoutMs: Number.parseInt(fields.connectionTimeoutMs.value || '10000', 10)
+        connectionTimeoutMs: Number.parseInt(fields.connectionTimeoutMs.value || '10000', 10),
+        keepSessionsInBackground: fields.keepSessionsInBackground.checked
       };
     }
     function writeForm(value) {
@@ -603,6 +755,7 @@ function getSettingsHtml() {
       fields.terminalType.value = value.terminalType || 'IBM-3279-2-E';
       fields.deviceName.value = value.deviceName || '';
       fields.connectionTimeoutMs.value = value.connectionTimeoutMs || 10000;
+      fields.keepSessionsInBackground.checked = value.keepSessionsInBackground !== false;
     }
     vscode.postMessage({ command: 'ready' });
     document.getElementById('openColors').addEventListener('click', () => {
@@ -857,6 +1010,9 @@ function getWebviewHtml() {
     <button id="settings" title="Connection settings">Settings</button>
     <button id="colors" title="Screen colors and appearance">Colors</button>
     <button id="disconnect" title="Disconnect">Disconnect</button>
+    <button id="newSession" title="Create another concurrent session">New Session</button>
+    <button id="copyScreen" title="Copy selected text or the full screen">Copy</button>
+    <button id="pasteClipboard" title="Paste clipboard text at cursor">Paste</button>
     <button data-aid="enter" title="Enter">Enter</button>
     <button data-aid="clear" title="Clear">Clear</button>
     <button data-action="backtab" title="Previous unprotected field">Backtab</button>
@@ -876,11 +1032,16 @@ function getWebviewHtml() {
     const screen = document.getElementById('screen');
     const status = document.getElementById('status');
     let terminalColors = {};
+    let customKeymap = {};
+    let latestScreenText = '';
 
     document.getElementById('connect').addEventListener('click', () => vscode.postMessage({ command: 'connect' }));
     document.getElementById('settings').addEventListener('click', () => vscode.postMessage({ command: 'settings' }));
     document.getElementById('colors').addEventListener('click', () => vscode.postMessage({ command: 'colors' }));
     document.getElementById('disconnect').addEventListener('click', () => vscode.postMessage({ command: 'disconnect' }));
+    document.getElementById('newSession').addEventListener('click', () => vscode.postMessage({ command: 'newSession' }));
+    document.getElementById('copyScreen').addEventListener('click', async () => copyScreenText());
+    document.getElementById('pasteClipboard').addEventListener('click', async () => pasteClipboardText());
     document.querySelectorAll('[data-aid]').forEach((button) => {
       button.addEventListener('click', () => vscode.postMessage({ command: 'aid', value: button.dataset.aid }));
     });
@@ -903,8 +1064,22 @@ function getWebviewHtml() {
       vscode.postMessage({ command: 'tab' });
       screen.focus();
     });
+    screen.addEventListener('paste', (event) => {
+      const text = event.clipboardData ? event.clipboardData.getData('text/plain') : '';
+      if (text) {
+        vscode.postMessage({ command: 'input', value: normalizePaste(text) });
+        event.preventDefault();
+      }
+    });
+    screen.addEventListener('copy', (event) => {
+      const text = selectedText() || latestScreenText;
+      if (text && event.clipboardData) {
+        event.clipboardData.setData('text/plain', text);
+        event.preventDefault();
+      }
+    });
     screen.addEventListener('keydown', (event) => {
-      const mapped = mapKey(event);
+      const mapped = mapCustomKey(event) || mapKey(event);
       if (mapped) {
         vscode.postMessage(mapped);
         event.preventDefault();
@@ -918,6 +1093,37 @@ function getWebviewHtml() {
         event.preventDefault();
       }
     });
+
+    function keySignature(event) {
+      const parts = [];
+      if (event.ctrlKey) parts.push('ctrl');
+      if (event.altKey) parts.push('alt');
+      if (event.shiftKey) parts.push('shift');
+      if (event.metaKey) parts.push('meta');
+      parts.push(String(event.key).toLowerCase());
+      return parts.join('+');
+    }
+    function mapCustomKey(event) {
+      const action = customKeymap[keySignature(event)] || customKeymap[String(event.key).toLowerCase()];
+      if (!action) {
+        return undefined;
+      }
+      return actionToMessage(action);
+    }
+    function actionToMessage(action) {
+      const value = String(action).trim().toLowerCase();
+      if (/^pf([1-9]|1[0-9]|2[0-4])$/.test(value) || /^pa[1-3]$/.test(value) || value === 'enter' || value === 'clear') {
+        return { command: 'aid', value };
+      }
+      if (value === 'tab' || value === 'backtab' || value === 'fieldexit') {
+        return { command: value === 'fieldexit' ? 'fieldExit' : value };
+      }
+      if (value.startsWith('text:')) {
+        return { command: 'input', value: action.slice(5) };
+      }
+      return undefined;
+    }
+
     function mapKey(event) {
       if (event.key === 'Enter') {
         return { command: 'aid', value: 'enter' };
@@ -999,6 +1205,8 @@ function getWebviewHtml() {
       terminalColors = event.data.colors && typeof event.data.colors === 'object' && !Array.isArray(event.data.colors)
         ? event.data.colors
         : {};
+      customKeymap = event.data.keymap && typeof event.data.keymap === 'object' && !Array.isArray(event.data.keymap) ? event.data.keymap : {};
+      latestScreenText = event.data.screenText || snapshot.screen.lines.join('\n');
       screen.dataset.rows = String(snapshot.screen.rows);
       screen.dataset.cols = String(snapshot.screen.cols);
       screen.innerHTML = renderScreen(snapshot.screen);
@@ -1009,6 +1217,33 @@ function getWebviewHtml() {
         ? 'Connected to ' + connection.host + ':' + connection.port + receiveDetail(connection)
         : (connection.lastError || 'Offline');
     });
+
+    function selectedText() {
+      const selection = window.getSelection();
+      return selection ? selection.toString().replace(/\n\n/g, '\n') : '';
+    }
+    async function copyScreenText() {
+      const text = selectedText() || latestScreenText;
+      if (navigator.clipboard && text) {
+        await navigator.clipboard.writeText(text);
+      }
+      screen.focus();
+    }
+    async function pasteClipboardText() {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        screen.focus();
+        return;
+      }
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        vscode.postMessage({ command: 'input', value: normalizePaste(text) });
+      }
+      screen.focus();
+    }
+    function normalizePaste(text) {
+      return String(text).replace(/\r\n?/g, '\n');
+    }
+
     function renderScreen(screenSnapshot) {
       return screenSnapshot.cells.map((cell, index) => {
         const newline = index > 0 && index % screenSnapshot.cols === 0 ? '\\n' : '';
