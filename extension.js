@@ -230,7 +230,9 @@ function openEmulator(context) {
     }
   }, undefined, context.subscriptions);
   activePanel.webview.onDidReceiveMessage(async (message) => {
-    if (message.command === 'input') {
+    if (message.command === 'ready') {
+      postSnapshot(activeSession.getSnapshot());
+    } else if (message.command === 'input') {
       activeSession.sendText(message.value ?? '');
     } else if (message.command === 'aid') {
       activeSession.sendAid(message.value);
@@ -390,6 +392,7 @@ async function connectFromSettings(settings) {
   }
   logConnection(`connect requested ${connection.secure ? 'tls' : 'telnet'} ${connection.hostname}:${connection.port}`);
   try {
+    openEmulator(extensionContext);
     await activeSession.connect({
       host: connection.hostname,
       port: connection.port,
@@ -1322,6 +1325,7 @@ function getWebviewHtml() {
       }
       return ' | received ' + connection.lastReceive.bytes + ' bytes as ' + connection.lastReceive.mode;
     }
+    vscode.postMessage({ command: 'ready' });
     screen.focus();
   </script>
 </body>

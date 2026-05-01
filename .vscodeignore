@@ -1,0 +1,11 @@
+.vscode/**
+.git/**
+.gitignore
+.DS_Store
+**/.DS_Store
+.claude/**
+.omx/**
+node_modules/**
+*.vsix
+package-lock.json
+test/**

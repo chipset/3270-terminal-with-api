@@ -19,6 +19,14 @@ Open this folder in VS Code and press `F5`, or package it as a normal extension.
 - `m3270: Next Field`
 - `m3270: Previous Field`
 
+To build the current package version and install it into VS Code, run:
+
+```sh
+npm run install:vscode
+```
+
+If the VS Code CLI is not on `PATH`, set `VSCODE_BIN` to the `code` executable path before running the script.
+
 Set defaults with:
 
 - `m3270.hostname`
