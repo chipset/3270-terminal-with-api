@@ -321,6 +321,22 @@ test('answers write structured field read partition query', () => {
   assert.deepEqual(sent.at(-1).slice(-2), [0xff, 0xef]);
 });
 
+test('builds structured-field query replies with valid field lengths', () => {
+  const reply = buildQueryReply();
+  const fields = [];
+
+  assert.equal(reply[0], 0x88);
+  for (let offset = 1; offset < reply.length;) {
+    const length = reply.readUInt16BE(offset);
+    assert.ok(length >= 3, `invalid field length at offset ${offset}`);
+    assert.ok(offset + length <= reply.length, `field at offset ${offset} exceeds reply length`);
+    fields.push(reply[offset + 3]);
+    offset += length;
+  }
+
+  assert.deepEqual(fields, [0x81, 0xa6, 0x86, 0x87]);
+});
+
 test('moves typing from protected screen text to the next unprotected field', () => {
   const session = new EmulatorSession();
 

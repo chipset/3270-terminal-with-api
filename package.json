@@ -270,6 +270,7 @@
     }
   },
   "scripts": {
+    "build": "vsce package --out m3270-${npm_package_version}.vsix",
     "test": "node --test test/*.test.js",
     "validate": "node test/emulator.test.js"
   },
