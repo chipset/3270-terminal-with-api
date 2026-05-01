@@ -256,6 +256,15 @@
           },
           "markdownDescription": "Optional map of 3270 color names to `#RRGGBB` in the emulator webview. Keys: `default`, `green`, `blue`, `red`, `pink`, `turquoise`, `yellow`, `white`, `black`, `deepBlue`, `orange`, `purple`, `paleGreen`, `paleTurquoise`, `gray`, `brightWhite`."
         },
+        "m3270.baseColorMode": {
+          "type": "string",
+          "default": "monochrome",
+          "enum": [
+            "monochrome",
+            "attribute-base"
+          ],
+          "description": "How to color fields when the host sends no explicit 3270 color attribute. Use monochrome for green/white intensity rendering, or attribute-base for 3279 base colors derived from protection and intensity."
+        },
         "m3270.deviceName": {
           "type": "string",
           "default": "",

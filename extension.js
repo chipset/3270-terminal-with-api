@@ -33,7 +33,7 @@ function activate(context) {
     vscode.commands.registerCommand('m3270.tab', () => activeSession.perform({ type: 'tab' })),
     vscode.commands.registerCommand('m3270.backtab', () => activeSession.perform({ type: 'backtab' })),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('m3270.colors')) {
+      if (e.affectsConfiguration('m3270.colors') || e.affectsConfiguration('m3270.baseColorMode')) {
         postColorPanelInit();
         if (activePanel) {
           postSnapshot(activeSession.getSnapshot());
@@ -106,15 +106,22 @@ function openEmulator(context) {
     'm3270.emulator',
     'm3270',
     vscode.ViewColumn.Active,
-    { enableScripts: true }
+    { enableScripts: true, retainContextWhenHidden: true }
   );
   activePanel.iconPath = vscode.Uri.file(path.join(extensionContext.extensionPath, 'icon.svg'));
   activePanel.webview.html = getWebviewHtml();
   activePanel.onDidDispose(() => {
     activePanel = undefined;
   }, undefined, context.subscriptions);
+  activePanel.onDidChangeViewState((event) => {
+    if (event.webviewPanel.visible) {
+      postSnapshot(activeSession.getSnapshot());
+    }
+  }, undefined, context.subscriptions);
   activePanel.webview.onDidReceiveMessage(async (message) => {
-    if (message.command === 'input') {
+    if (message.command === 'ready') {
+      postSnapshot(activeSession.getSnapshot());
+    } else if (message.command === 'input') {
       activeSession.sendText(message.value ?? '');
     } else if (message.command === 'aid') {
       activeSession.sendAid(message.value);
@@ -203,13 +210,14 @@ function openColorSettingsPanel(context) {
     if (message.command === 'ready') {
       postColorPanelInit();
     } else if (message.command === 'save') {
-      await saveColorSettings(message.values ?? {});
+      await saveColorSettings(message.values ?? {}, message.baseColorMode);
       vscode.window.setStatusBarMessage('m3270 colors saved', 1800);
       postColorPanelInit();
       postSnapshot(activeSession.getSnapshot());
     } else if (message.command === 'resetColors') {
       const config = vscode.workspace.getConfiguration('m3270');
       await config.update('colors', {}, vscode.ConfigurationTarget.Global);
+      await config.update('baseColorMode', 'monochrome', vscode.ConfigurationTarget.Global);
       vscode.window.setStatusBarMessage('m3270 colors reset to built-in defaults', 1800);
       postColorPanelInit();
       postSnapshot(activeSession.getSnapshot());
@@ -230,11 +238,12 @@ function postColorPanelInit() {
     command: 'init',
     defaults: DEFAULT_TERMINAL_COLORS,
     values: getResolvedTerminalColors(),
+    baseColorMode: getBaseColorMode(),
     terminalType: getConfiguredConnection().terminalType
   });
 }
 
-async function saveColorSettings(values) {
+async function saveColorSettings(values, baseColorMode) {
   const config = vscode.workspace.getConfiguration('m3270');
   const next = {};
   for (const { key } of TERMINAL_COLOR_ROWS) {
@@ -248,6 +257,7 @@ async function saveColorSettings(values) {
     }
   }
   await config.update('colors', next, vscode.ConfigurationTarget.Global);
+  await config.update('baseColorMode', normalizeBaseColorMode(baseColorMode), vscode.ConfigurationTarget.Global);
 }
 
 async function connectFromStoredSettings() {
@@ -362,13 +372,22 @@ function getResolvedTerminalColors() {
   return { ...DEFAULT_TERMINAL_COLORS, ...getUserColorOverrides() };
 }
 
+function getBaseColorMode() {
+  return normalizeBaseColorMode(vscode.workspace.getConfiguration('m3270').get('baseColorMode', 'monochrome'));
+}
+
+function normalizeBaseColorMode(value) {
+  return value === 'attribute-base' ? 'attribute-base' : 'monochrome';
+}
+
 function postSnapshot(snapshot) {
   mirrorSnapshotToWorkspaces(snapshot);
   if (activePanel) {
     activePanel.webview.postMessage({
       command: 'snapshot',
       snapshot,
-      colors: getResolvedTerminalColors()
+      colors: getResolvedTerminalColors(),
+      baseColorMode: getBaseColorMode()
     });
   }
 }
@@ -651,6 +670,8 @@ function getColorSettingsHtml() {
     .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; line-height: 1.45; }
     .term { font-size: 13px; margin: 0 0 18px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; }
     .term code { color: var(--accent); }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; text-transform: uppercase; margin: 0 0 14px; }
+    select { height: 32px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); padding: 0 8px; font: inherit; }
     .color-row {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -677,6 +698,12 @@ function getColorSettingsHtml() {
     <h1>m3270 Colors &amp; appearance</h1>
     <p class="sub">Maps host TN3279-style color names to hex for the emulator screen. Values are stored in <code>m3270.colors</code> in your settings.</p>
     <p class="term">Current <strong>terminal type</strong> (change under Connection Settings): <code id="termType">—</code></p>
+    <label>Fields without host color
+      <select id="baseColorMode">
+        <option value="monochrome">Green/white by intensity</option>
+        <option value="attribute-base">3279 base colors by field attribute</option>
+      </select>
+    </label>
     <div id="rows">${colorRowsHtml}</div>
     <div class="actions">
       <button class="primary" id="saveColors">Save colors</button>
@@ -687,6 +714,7 @@ function getColorSettingsHtml() {
   <script>
     const vscode = acquireVsCodeApi();
     let defaults = {};
+    const baseColorMode = document.getElementById('baseColorMode');
     const hexRe = /^#[0-9a-fA-F]{6}$/;
     function readValues() {
       const o = {};
@@ -716,7 +744,7 @@ function getColorSettingsHtml() {
     }
     document.querySelectorAll('.color-row').forEach(wireRow);
     document.getElementById('saveColors').addEventListener('click', () => {
-      vscode.postMessage({ command: 'save', values: readValues() });
+      vscode.postMessage({ command: 'save', values: readValues(), baseColorMode: baseColorMode.value });
     });
     document.getElementById('resetAllColors').addEventListener('click', () => {
       vscode.postMessage({ command: 'resetColors' });
@@ -730,6 +758,7 @@ function getColorSettingsHtml() {
       }
       defaults = event.data.defaults || {};
       const values = event.data.values || {};
+      baseColorMode.value = event.data.baseColorMode === 'attribute-base' ? 'attribute-base' : 'monochrome';
       document.getElementById('termType').textContent = event.data.terminalType || '—';
       document.querySelectorAll('.color-row').forEach((row) => {
         const key = row.dataset.key;
@@ -876,6 +905,7 @@ function getWebviewHtml() {
     const screen = document.getElementById('screen');
     const status = document.getElementById('status');
     let terminalColors = {};
+    let baseColorMode = 'monochrome';
 
     document.getElementById('connect').addEventListener('click', () => vscode.postMessage({ command: 'connect' }));
     document.getElementById('settings').addEventListener('click', () => vscode.postMessage({ command: 'settings' }));
@@ -999,6 +1029,7 @@ function getWebviewHtml() {
       terminalColors = event.data.colors && typeof event.data.colors === 'object' && !Array.isArray(event.data.colors)
         ? event.data.colors
         : {};
+      baseColorMode = event.data.baseColorMode === 'attribute-base' ? 'attribute-base' : 'monochrome';
       screen.dataset.rows = String(snapshot.screen.rows);
       screen.dataset.cols = String(snapshot.screen.cols);
       screen.innerHTML = renderScreen(snapshot.screen);
@@ -1060,13 +1091,25 @@ function getWebviewHtml() {
       // True 3270 reverse swaps fg/bg per cell; painting the host "bg" color on every
       // character (including spaces) with inline-block reads as solid bars in HTML.
       // Render reverse as high-contrast text in the field color on the screen background.
-      let name = cell.color;
+      let name = displayColorName(cell);
       if (cell.reverse && name === 'black') {
         name = 'white';
       }
       const color = colorValue(name);
       const intensify = cell.intensify ? 'font-weight:700;filter:saturate(1.15) brightness(1.08);' : '';
       return 'color:' + color + ';background:transparent;' + intensify;
+    }
+    function displayColorName(cell) {
+      if (cell.explicitColor) {
+        return cell.color;
+      }
+      if (baseColorMode === 'attribute-base') {
+        if (cell.protected) {
+          return cell.intensified ? 'white' : 'blue';
+        }
+        return cell.intensified ? 'red' : 'green';
+      }
+      return cell.intensified ? 'white' : 'green';
     }
     function colorValue(color) {
       if (terminalColors && Object.prototype.hasOwnProperty.call(terminalColors, color)) {
@@ -1087,6 +1130,7 @@ function getWebviewHtml() {
       }
       return ' | received ' + connection.lastReceive.bytes + ' bytes as ' + connection.lastReceive.mode;
     }
+    vscode.postMessage({ command: 'ready' });
     screen.focus();
   </script>
 </body>

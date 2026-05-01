@@ -58,6 +58,17 @@ test('reports connection status for API validators', () => {
   assert.equal(session.getSnapshot().connection.systemName, 'mainframe.example.com');
 });
 
+test('clears the screen when disconnecting', () => {
+  const session = new EmulatorSession();
+  session.receive('LOGON APPLID\r\nUSERID ===>');
+  session.connection.connected = true;
+
+  const snapshot = session.disconnect();
+
+  assert.equal(snapshot.connection.connected, false);
+  assert.equal(snapshot.screen.lines.join('').trim(), '');
+});
+
 test('strips telnet negotiation bytes before screen rendering', () => {
   const stripped = stripTelnetControls(Buffer.from([255, 251, 24, 72, 73, 255, 255]));
 
@@ -180,6 +191,8 @@ test('moves backward to the previous unprotected field', () => {
 
 test('applies extended color and highlight attributes from SFE and SA orders', () => {
   const session = new EmulatorSession();
+  const datastreams = [];
+  session.on('datastream', (result) => datastreams.push(result));
 
   session.receiveDataStream(Buffer.concat([
     Buffer.from([COMMANDS.eraseWrite, 0xc7, ORDERS.sba]),
@@ -197,6 +210,10 @@ test('applies extended color and highlight attributes from SFE and SA orders', (
   assert.equal(snapshot.screen.cells[1].underscore, true);
   assert.equal(snapshot.screen.cells[5].color, 'yellow');
   assert.equal(snapshot.screen.cells[5].reverse, true);
+  assert.deepEqual(datastreams[0].colorAttributes, [
+    { value: 0xf2, hex: '0xf2', count: 1 },
+    { value: 0xf6, hex: '0xf6', count: 1 }
+  ]);
   assert.match(session.getScreenshot({ format: 'svg' }), /fill="#ffe66d"/u);
 });
 
@@ -237,6 +254,55 @@ test('resets Set Attribute context when a new field starts so colors do not blee
   const cells = session.getSnapshot().screen.cells;
   assert.equal(cells[1].color, 'white');
   assert.equal(cells[11].color, 'green');
+});
+
+test('derives 3279 base colors from field protection and intensity when host sends no color attributes', () => {
+  const session = new EmulatorSession();
+
+  session.receiveDataStream(Buffer.concat([
+    Buffer.from([COMMANDS.eraseWrite, 0xc7, ORDERS.sba]),
+    encodeAddress(0),
+    Buffer.from([ORDERS.sf, 0x20]),
+    toEbcdic('PROTECTED'),
+    Buffer.from([ORDERS.sba]),
+    encodeAddress(12),
+    Buffer.from([ORDERS.sf, 0x28]),
+    toEbcdic('BRIGHT'),
+    Buffer.from([ORDERS.sba]),
+    encodeAddress(24),
+    Buffer.from([ORDERS.sf, 0x00]),
+    toEbcdic('INPUT'),
+    Buffer.from([ORDERS.sba]),
+    encodeAddress(36),
+    Buffer.from([ORDERS.sf, 0x08]),
+    toEbcdic('WARN')
+  ]));
+
+  const cells = session.getSnapshot().screen.cells;
+  assert.equal(cells[1].color, 'blue');
+  assert.equal(cells[1].explicitColor, false);
+  assert.equal(cells[13].color, 'white');
+  assert.equal(cells[25].color, 'green');
+  assert.equal(cells[37].color, 'red');
+});
+
+test('applies field color to repeat-to-address cells', () => {
+  const session = new EmulatorSession();
+
+  session.receiveDataStream(Buffer.concat([
+    Buffer.from([COMMANDS.eraseWrite, 0xc7, ORDERS.sba]),
+    encodeAddress(0),
+    Buffer.from([ORDERS.sfe, 2, 0xc0, 0x00, 0x42, 0xf2]),
+    Buffer.from([ORDERS.ra]),
+    encodeAddress(5),
+    Buffer.from([toEbcdic(' ')[0]])
+  ]));
+
+  const cells = session.getSnapshot().screen.cells;
+  assert.equal(cells[1].char, ' ');
+  assert.equal(cells[1].color, 'red');
+  assert.equal(cells[1].explicitColor, true);
+  assert.equal(cells[4].color, 'red');
 });
 
 test('renders ASCII host banners instead of treating them as blank EBCDIC', () => {
