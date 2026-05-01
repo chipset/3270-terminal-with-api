@@ -381,7 +381,7 @@ function normalizeBaseColorMode(value) {
 }
 
 function postSnapshot(snapshot) {
-  mirrorSnapshotToWorkspaces(snapshot);
+  mirrorSnapshotToWorkspaces(snapshot).catch((err) => logConnection(`snapshot mirror error: ${err.message}`));
   if (activePanel) {
     activePanel.webview.postMessage({
       command: 'snapshot',
@@ -440,6 +440,7 @@ function getSettingsHtml() {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>m3270 Connection Settings</title>
   <style>
@@ -652,6 +653,7 @@ function getColorSettingsHtml() {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>m3270 Colors</title>
   <style>
@@ -783,6 +785,7 @@ function getWebviewHtml() {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>m3270</title>
   <style>
